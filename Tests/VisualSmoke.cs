@@ -1363,7 +1363,11 @@ namespace WBToolbox.Native.Tests
                     Point outside = new Point(physicalArea.Left - 2000, physicalArea.Top - 2000);
                     dock.CompleteMove();
                     if (!dock.IsHidden || !dock.IsAnimating) throw new InvalidOperationException("贴边缩回没有启动动画");
-                    Wait(dispatcher, 360);
+                    WaitUntil(
+                        dispatcher,
+                        delegate { return !dock.IsAnimating; },
+                        1200,
+                        "贴边缩回动画未完成：" + edge);
                     if (dock.IsAnimating || !dock.IsHidden) throw new InvalidOperationException("贴边缩回动画未完成");
                     if ((GetWindowLong(hostHandle, -20) & 0x00000008) == 0)
                         throw new InvalidOperationException("隐藏窗口的唤醒窄条没有保持可访问：" + edge);
@@ -1382,7 +1386,11 @@ namespace WBToolbox.Native.Tests
                     dock.ProcessPointer(outside, false);
                     dock.ProcessPointer(near, false);
                     if (dock.IsHidden || !dock.IsAnimating) throw new InvalidOperationException("鼠标靠近没有启动弹出动画");
-                    Wait(dispatcher, 360);
+                    WaitUntil(
+                        dispatcher,
+                        delegate { return !dock.IsAnimating; },
+                        1200,
+                        "贴边弹出动画未完成：" + edge);
                     if (Math.Abs(host.Left - aligned.Left) > 1 || Math.Abs(host.Top - aligned.Top) > 1)
                         throw new InvalidOperationException("弹出后没有恢复窗口位置");
                     AssertRoundedWindowRegion(host);
@@ -1397,14 +1405,22 @@ namespace WBToolbox.Native.Tests
                     if (dock.IsHidden) throw new InvalidOperationException("操作菜单期间仍自动隐藏");
                     allowHide = true;
                     dock.ProcessPointer(outside, false);
-                    Wait(dispatcher, 60);
+                    WaitUntil(
+                        dispatcher,
+                        delegate { return dock.IsAnimating; },
+                        400,
+                        "贴边缩回动画没有及时启动：" + edge);
                     if (!dock.IsAnimating) throw new InvalidOperationException("未能验证动画中途取消：" + edge);
                     Point beforeReverse = host.PointToScreen(new Point(0, 0));
                     dock.Reveal();
                     Point afterReverse = host.PointToScreen(new Point(0, 0));
                     if (beforeReverse != afterReverse || dock.IsHidden || !dock.IsAnimating)
                         throw new InvalidOperationException("动画反向时发生位置跳变");
-                    Wait(dispatcher, 360);
+                    WaitUntil(
+                        dispatcher,
+                        delegate { return !dock.IsAnimating; },
+                        1200,
+                        "反向弹出动画未完成：" + edge);
                     AssertRoundedWindowRegion(host);
                     // An activation-style reveal must stay open while the pointer remains elsewhere.
                     dock.ProcessPointer(outside, false);

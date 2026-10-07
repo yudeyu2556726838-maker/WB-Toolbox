@@ -195,47 +195,47 @@ namespace WBToolbox.Native.UI
         private static void InstallDecoratedColors(ResourceDictionary resources, bool dark)
         {
             resources[WindowBrush] = Gradient(
-                dark ? "#2206204B" : "#16E8F9FF",
-                dark ? "#161B235E" : "#10DCE5FF",
-                dark ? "#20532368" : "#14FFF0FA", 145);
+                dark ? "#5806204B" : "#52F3FAFF",
+                dark ? "#4C1B235E" : "#46EAF4FF",
+                dark ? "#54532368" : "#4CFFF4FA", 145);
             resources[SurfaceBrush] = Gradient(
-                dark ? "#76062452" : "#68FFFFFF",
-                dark ? "#58124884" : "#50D8F1FF",
-                dark ? "#50452168" : "#46FFE1F3", 145);
+                dark ? "#B0062452" : "#B8FFFFFF",
+                dark ? "#98124884" : "#AEEAF6FF",
+                dark ? "#92452168" : "#AAFBEFFA", 145);
             resources[SurfaceRaisedBrush] = Gradient(
-                dark ? "#940B2A5E" : "#A3FFFFFF",
-                dark ? "#8042316E" : "#8ED9EEFF",
-                dark ? "#8422426B" : "#96F7E8FC", 145);
+                dark ? "#D20B2A5E" : "#E2FFFFFF",
+                dark ? "#C442316E" : "#D7EAF6FF",
+                dark ? "#C622426B" : "#DCF9F2FC", 145);
             resources[RateBrush] = Gradient(
-                dark ? "#80062452" : "#72FFFFFF",
-                dark ? "#60144884" : "#54D8F1FF",
-                dark ? "#58452168" : "#4CFFE1F3", 142);
+                dark ? "#B8062452" : "#B8FFFFFF",
+                dark ? "#9E144884" : "#A8E8F5FF",
+                dark ? "#98452168" : "#A4F8EAF6", 142);
             resources[ConverterBrush] = Gradient(
-                dark ? "#78051C45" : "#70FFFFFF",
-                dark ? "#5A103D7C" : "#52EAF5FF",
-                dark ? "#523D1E66" : "#48FFE1F3", 150);
+                dark ? "#B0051C45" : "#B4FFFFFF",
+                dark ? "#98103D7C" : "#A4EAF5FF",
+                dark ? "#943D1E66" : "#A0F8EAF6", 150);
             resources[TranslatorBrush] = Gradient(
-                dark ? "#7806204B" : "#70FFFFFF",
-                dark ? "#5A124886" : "#52DFF3FF",
-                dark ? "#52451F68" : "#48F8E4FC", 150);
+                dark ? "#B006204B" : "#B4FFFFFF",
+                dark ? "#98124886" : "#A4E5F4FF",
+                dark ? "#94451F68" : "#A0F8E9FA", 150);
             resources[PricingBrush] = Gradient(
-                dark ? "#7806204B" : "#70FFFFFF",
-                dark ? "#5A124886" : "#52DAF1FF",
-                dark ? "#52451F68" : "#48F4E1FF", 145);
+                dark ? "#B806204B" : "#BAFFFFFF",
+                dark ? "#A0124886" : "#AEE9F5FF",
+                dark ? "#9C451F68" : "#AAF9EDFA", 145);
             resources[PricingGlassBrush] = Gradient(
-                dark ? "#52082140" : "#58FFFFFF",
-                dark ? "#42163154" : "#42DFF3FF",
-                dark ? "#3A2C2048" : "#38F8E4FC", 145);
+                dark ? "#C4082140" : "#D0FFFFFF",
+                dark ? "#AE163154" : "#C8EAF6FF",
+                dark ? "#AA2C2048" : "#C3F9EFFC", 145);
             resources[PricingFieldBrush] = Gradient(
-                dark ? "#660A2448" : "#76FFFFFF",
-                dark ? "#52172C50" : "#64D8F1FF",
-                dark ? "#4A241E44" : "#58F2E5FF", 145);
-            resources[PricingBorderBrush] = Brush(dark ? "#8A90CBF5" : "#AA5B91D3");
+                dark ? "#D20A2448" : "#E3FFFFFF",
+                dark ? "#C2172C50" : "#DCEAF6FF",
+                dark ? "#BE241E44" : "#DAF7EEFC", 145);
+            resources[PricingBorderBrush] = Brush(dark ? "#7090CBF5" : "#705B91D3");
             resources[ResultBrush] = Gradient(
-                dark ? "#62094989" : "#68DCF6FF",
-                dark ? "#54422C84" : "#58EADEFF",
-                dark ? "#54422C84" : "#58EADEFF", 135);
-            resources[InputBrush] = Brush(dark ? "#9A082858" : "#B5FCFEFF");
+                dark ? "#D0094989" : "#D6E6F8FF",
+                dark ? "#C0422C84" : "#CCEDE7FF",
+                dark ? "#C0422C84" : "#C8F4EAFB", 135);
+            resources[InputBrush] = Brush(dark ? "#D8082858" : "#ECFCFEFF");
             resources[TextBrush] = Brush(dark ? "#F4F8FF" : "#173D69");
             resources[MutedBrush] = Brush(dark ? "#D5E9F8" : "#244F78");
             resources[AccentBrush] = Brush(dark ? "#BCE4FF" : "#365FD6");
@@ -248,8 +248,8 @@ namespace WBToolbox.Native.UI
                 dark ? "#F05A67D5" : "#ED536FDB",
                 dark ? "#E49A56C7" : "#E78A58C8", 135);
             resources[PrimaryTextBrush] = Brush("#FFFFFFFF");
-            resources[BorderBrush] = Brush(dark ? "#7F84C6FF" : "#B8FFFFFF");
-            resources[InputBorderBrush] = Brush(dark ? "#B876C3FF" : "#AA5B91D3");
+            resources[BorderBrush] = Brush(dark ? "#6684C6FF" : "#80FFFFFF");
+            resources[InputBorderBrush] = Brush(dark ? "#9476C3FF" : "#865B91D3");
         }
 
         internal static CardSurface Card(string brushKey, double radius, Thickness padding)

@@ -210,10 +210,10 @@ namespace WBToolbox.Native.UI
             bool image = settings.BackgroundMode == AppSettings.BackgroundBuiltInSkin ||
                 settings.BackgroundMode == AppSettings.BackgroundCustomImage;
             bool video = settings.BackgroundMode == AppSettings.BackgroundCustomVideo;
-            backgroundImage.Opacity = image ? (settings.DarkTheme ? 0.90 : 0.95) : 0;
+            backgroundImage.Opacity = image ? (settings.DarkTheme ? 0.80 : 0.82) : 0;
             if (backgroundVideo != null)
             {
-                backgroundVideo.Opacity = video ? (settings.DarkTheme ? 0.90 : 0.95) : 0;
+                backgroundVideo.Opacity = video ? (settings.DarkTheme ? 0.80 : 0.82) : 0;
             }
         }
 

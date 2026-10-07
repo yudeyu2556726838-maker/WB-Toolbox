@@ -1,4 +1,4 @@
-# WB Toolbox v4 Native Alpha 37
+# WB Toolbox v4 Native Alpha 38
 
 WB Toolbox v4 是原生 WPF 重写版。它不使用 WebView2、HTML、CSS 或 JavaScript，主窗口、悬浮小窗、输入控件和动画全部由 Windows 桌面控件渲染。
 
@@ -25,6 +25,7 @@ WB Toolbox v4 是原生 WPF 重写版。它不使用 WebView2、HTML、CSS 或 J
 - 本地设置与缓存
 - 新安装默认使用纯白浅色主题，界面采用黑、白与中性灰组合；仍可切换纯黑深色模式
 - 黑白配色仅用于纯白、纯黑默认背景；图片与视频背景自动恢复蓝色玻璃轮廓，并为定价方案区域使用更通透的专属层级
+- 图片与视频背景采用柔和遮罩和更稳定的内容底色；定价页减少嵌套描边，让输入、结果、明细和说明形成清晰层级
 - 使用简洁的英文“WB”品牌图标，并统一显示英文产品名 WB Toolbox
 - 默认使用浅色纯白、深色纯黑背景；原天空少女背景已移入“背景皮肤”，并继续支持自定义本地图片与静音循环视频背景
 - 选择视频时自动打开区域选择窗口，可重新框选、拖动、缩放并保存显示区域
@@ -62,7 +63,7 @@ WB Toolbox v4 是原生 WPF 重写版。它不使用 WebView2、HTML、CSS 或 J
 .\Build-Native.ps1
 ```
 
-输出位于 `dist\WB-Toolbox-v4.0.0-alpha.37.exe`。
+输出位于 `dist\WB-Toolbox-v4.0.0-alpha.38.exe`。
 
 执行完整测试并生成便携发布包：
 

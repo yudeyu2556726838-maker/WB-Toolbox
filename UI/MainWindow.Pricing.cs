@@ -108,9 +108,8 @@ namespace WBToolbox.Native.UI
             resultCard.Margin = new Thickness(0, 9, 0, 0);
             resultCard.Padding = new Thickness(12, 9, 12, 9);
             resultCard.CornerRadius = new CornerRadius(16);
-            resultCard.BorderThickness = new Thickness(1);
+            resultCard.BorderThickness = new Thickness(0);
             resultCard.SetResourceReference(Border.BackgroundProperty, UiFactory.ResultBrush);
-            resultCard.SetResourceReference(Border.BorderBrushProperty, UiFactory.BorderBrush);
             Grid resultGrid = new Grid();
             resultGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             resultGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -479,9 +478,8 @@ namespace WBToolbox.Native.UI
             Border editor = new Border();
             editor.CornerRadius = new CornerRadius(7);
             editor.Padding = new Thickness(8, 3, 6, 3);
-            editor.BorderThickness = new Thickness(1);
+            editor.BorderThickness = new Thickness(0);
             editor.SetResourceReference(Border.BackgroundProperty, UiFactory.PricingFieldBrush);
-            editor.SetResourceReference(Border.BorderBrushProperty, UiFactory.PricingBorderBrush);
             Grid row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
@@ -539,9 +537,8 @@ namespace WBToolbox.Native.UI
             box.Margin = margin;
             box.Padding = new Thickness(10, 6, 10, 6);
             box.CornerRadius = new CornerRadius(11);
-            box.BorderThickness = new Thickness(1);
-            box.SetResourceReference(Border.BackgroundProperty, UiFactory.SurfaceBrush);
-            box.SetResourceReference(Border.BorderBrushProperty, UiFactory.BorderBrush);
+            box.BorderThickness = new Thickness(0);
+            box.SetResourceReference(Border.BackgroundProperty, UiFactory.PricingFieldBrush);
             Grid row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

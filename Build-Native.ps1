@@ -5,7 +5,7 @@ $framework = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
 $wpfFramework = Join-Path $framework 'WPF'
 $root = $PSScriptRoot
 $outputDirectory = Join-Path $root 'dist'
-$outputFile = Join-Path $outputDirectory 'WB-Toolbox-v4.0.0-alpha.37.exe'
+$outputFile = Join-Path $outputDirectory 'WB-Toolbox-v4.0.0-alpha.38.exe'
 $icon = Join-Path $root 'Assets\WBToolbox.ico'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
