@@ -1,0 +1,30 @@
+# Build outputs
+dist/
+bin/
+obj/
+release/
+work/
+TestResults/
+Installer/Output/
+
+# Visual Studio and local tooling
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.pdb
+
+# Runtime data and diagnostics
+settings.json
+*.log
+logs/
+crash-*.txt
+custom-background*
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+Thumbs.db
+Desktop.ini
