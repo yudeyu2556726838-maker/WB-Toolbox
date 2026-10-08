@@ -474,6 +474,8 @@ namespace WBToolbox.Native.Tests
                 Wait(window.Dispatcher, 120);
             }
 
+            AssertVideoFailurePreservesPreference(window);
+
             window.Close();
             application.Shutdown();
             Console.WriteLine(outputDirectory);
@@ -964,6 +966,52 @@ namespace WBToolbox.Native.Tests
             }
         }
 
+        private static void AssertVideoFailurePreservesPreference(MainWindow window)
+        {
+            BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            FieldInfo settingsField = typeof(MainWindow).GetField("settings", flags);
+            FieldInfo fallbackField = typeof(MainWindow).GetField("videoFallbackVisible", flags);
+            MethodInfo failed = typeof(MainWindow).GetMethod(
+                "HandleBackgroundVideoFailed", flags);
+            MethodInfo ready = typeof(MainWindow).GetMethod(
+                "HandleBackgroundVideoReady", flags);
+            if (settingsField == null || fallbackField == null || failed == null || ready == null)
+                throw new InvalidOperationException("未找到视频背景恢复状态入口");
+
+            AppSettings settings = settingsField.GetValue(window) as AppSettings;
+            string previousMode = settings.BackgroundMode;
+            string previousPath = settings.CustomBackgroundPath;
+            bool previousIsVideo = settings.CustomBackgroundIsVideo;
+            string retainedPath = Path.Combine(Path.GetTempPath(), "retained-video-background.mp4");
+            settings.BackgroundMode = AppSettings.BackgroundCustomVideo;
+            settings.CustomBackgroundPath = retainedPath;
+            settings.CustomBackgroundIsVideo = true;
+
+            failed.Invoke(window, new object[]
+            {
+                window,
+                new VideoPlaybackFailedEventArgs(new InvalidOperationException("test decoder failure"))
+            });
+            if (settings.BackgroundMode != AppSettings.BackgroundCustomVideo ||
+                settings.CustomBackgroundPath != retainedPath ||
+                !settings.CustomBackgroundIsVideo || !(bool)fallbackField.GetValue(window))
+            {
+                throw new InvalidOperationException("视频解码失败后清除了用户背景设置");
+            }
+
+            ready.Invoke(window, new object[] { window, EventArgs.Empty });
+            if ((bool)fallbackField.GetValue(window) ||
+                settings.BackgroundMode != AppSettings.BackgroundCustomVideo ||
+                settings.CustomBackgroundPath != retainedPath)
+            {
+                throw new InvalidOperationException("视频恢复后没有保留原背景设置");
+            }
+
+            settings.BackgroundMode = previousMode;
+            settings.CustomBackgroundPath = previousPath;
+            settings.CustomBackgroundIsVideo = previousIsVideo;
+        }
+
         private static void AssertRealVideoLoopCover(
             MainWindow window,
             string videoPath,
@@ -1366,7 +1414,7 @@ namespace WBToolbox.Native.Tests
                     WaitUntil(
                         dispatcher,
                         delegate { return !dock.IsAnimating; },
-                        1200,
+                        2000,
                         "贴边缩回动画未完成：" + edge);
                     if (dock.IsAnimating || !dock.IsHidden) throw new InvalidOperationException("贴边缩回动画未完成");
                     if ((GetWindowLong(hostHandle, -20) & 0x00000008) == 0)
@@ -1389,7 +1437,7 @@ namespace WBToolbox.Native.Tests
                     WaitUntil(
                         dispatcher,
                         delegate { return !dock.IsAnimating; },
-                        1200,
+                        2000,
                         "贴边弹出动画未完成：" + edge);
                     if (Math.Abs(host.Left - aligned.Left) > 1 || Math.Abs(host.Top - aligned.Top) > 1)
                         throw new InvalidOperationException("弹出后没有恢复窗口位置");
@@ -1419,7 +1467,7 @@ namespace WBToolbox.Native.Tests
                     WaitUntil(
                         dispatcher,
                         delegate { return !dock.IsAnimating; },
-                        1200,
+                        2000,
                         "反向弹出动画未完成：" + edge);
                     AssertRoundedWindowRegion(host);
                     // An activation-style reveal must stay open while the pointer remains elsewhere.

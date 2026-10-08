@@ -97,6 +97,7 @@ namespace WBToolbox.Native.UI
         }
 
         internal event EventHandler<VideoPlaybackFailedEventArgs> PlaybackFailed;
+        internal event EventHandler PlaybackReady;
 
         internal bool HasVideo
         {
@@ -244,6 +245,8 @@ namespace WBToolbox.Native.UI
                 sourceSize = new Size(opened.NaturalVideoWidth, opened.NaturalVideoHeight);
                 activeReady = true;
                 ApplyCrop();
+                EventHandler ready = PlaybackReady;
+                if (ready != null) ready(this, EventArgs.Empty);
                 EnsureStandby();
                 if (playRequested)
                 {

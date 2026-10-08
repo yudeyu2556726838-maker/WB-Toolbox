@@ -146,6 +146,7 @@ namespace WBToolbox.Native.UI
 
             backgroundVideo = new VideoBackgroundPresenter();
             backgroundVideo.PlaybackFailed += HandleBackgroundVideoFailed;
+            backgroundVideo.PlaybackReady += HandleBackgroundVideoReady;
             scene.Children.Add(backgroundVideo);
             ApplySavedBackground();
             UpdateBackgroundOpacity();
@@ -883,7 +884,9 @@ namespace WBToolbox.Native.UI
             CloseTranslationFeature();
             if (backgroundVideo != null)
             {
+                StopBackgroundVideoRecovery();
                 backgroundVideo.PlaybackFailed -= HandleBackgroundVideoFailed;
+                backgroundVideo.PlaybackReady -= HandleBackgroundVideoReady;
                 backgroundVideo.Dispose();
             }
             if (miniWindow != null)

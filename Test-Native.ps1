@@ -11,6 +11,7 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $output) -Force | Out-Nul
     (Join-Path $root 'Core\NumericInput.cs') `
     (Join-Path $root 'Core\PricingEngine.cs') `
     (Join-Path $root 'Core\CommissionCatalog.cs') `
+    (Join-Path $root 'Services\VideoBackgroundOptimizer.cs') `
     "/resource:$(Join-Path $root 'Assets\category-commissions.tsv'),WBToolbox.Native.Assets.category-commissions.tsv" `
     (Join-Path $root 'Tests\CoreTests.cs')
 

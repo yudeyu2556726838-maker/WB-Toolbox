@@ -5,7 +5,7 @@ $framework = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
 $wpfFramework = Join-Path $framework 'WPF'
 $root = $PSScriptRoot
 $outputDirectory = Join-Path $root 'dist'
-$outputFile = Join-Path $outputDirectory 'WB-Toolbox-v4.0.0-alpha.38.exe'
+$outputFile = Join-Path $outputDirectory 'WB-Toolbox-v4.0.0-alpha.40.exe'
 $icon = Join-Path $root 'Assets\WBToolbox.ico'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
@@ -29,6 +29,7 @@ $sources = @(
     Join-Path $root 'Services\ExchangeRateService.cs'
     Join-Path $root 'Services\SettingsStore.cs'
     Join-Path $root 'Services\TranslationService.cs'
+    Join-Path $root 'Services\VideoBackgroundOptimizer.cs'
     Join-Path $root 'UI\NativeWindowEffects.cs'
     Join-Path $root 'UI\EdgeDockController.cs'
     Join-Path $root 'UI\WindowRegionClip.cs'

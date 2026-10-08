@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$version = '4.0.0-alpha.38'
+$version = '4.0.0-alpha.40'
 $releaseRoot = Join-Path (Split-Path -Parent $root) 'release'
 $releaseDirectory = Join-Path $releaseRoot "WB-Toolbox-v$version"
 $installerScript = Join-Path $root 'Installer\WBToolbox.iss'

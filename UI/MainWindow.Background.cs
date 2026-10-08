@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using WBToolbox.Native.Diagnostics;
 using WBToolbox.Native.Services;
@@ -12,6 +13,10 @@ namespace WBToolbox.Native.UI
 {
     internal sealed partial class MainWindow
     {
+        private DispatcherTimer backgroundVideoRetryTimer;
+        private int backgroundVideoFailureCount;
+        private bool videoFallbackVisible;
+
         private void SelectCustomBackground(object sender, RoutedEventArgs args)
         {
             OpenFileDialog dialog = new OpenFileDialog
@@ -23,6 +28,8 @@ namespace WBToolbox.Native.UI
 
             try
             {
+                StopBackgroundVideoRecovery();
+                videoFallbackVisible = false;
                 string imported = settingsStore.ImportBackground(dialog.FileName);
                 BitmapImage image = EmbeddedAssets.LoadFile(imported);
                 backgroundVideo.CloseMedia();
@@ -76,14 +83,33 @@ namespace WBToolbox.Native.UI
             if (accepted != true) return;
 
             backgroundVideoImporting = true;
+            VideoOptimizationResult preparedVideo = null;
+            Exception optimizationError = null;
             try
             {
                 // Release the previous media graph before replacing the managed copy.
+                StopBackgroundVideoRecovery();
+                videoFallbackVisible = false;
                 backgroundVideo.CloseMedia();
-                if (footerStatus != null) footerStatus.Text = "正在导入视频背景…";
+                if (footerStatus != null) footerStatus.Text = "正在分析并优化视频背景…";
+                try
+                {
+                    preparedVideo = await VideoBackgroundOptimizer.PrepareAsync(selectedVideoPath);
+                }
+                catch (Exception error)
+                {
+                    optimizationError = error;
+                    CrashLogger.Log(error);
+                    preparedVideo = new VideoOptimizationResult(selectedVideoPath, false);
+                }
+                if (closed) return;
+                if (footerStatus != null)
+                    footerStatus.Text = preparedVideo.Optimized
+                        ? "视频已优化至流畅背景规格，正在保存…"
+                        : "正在导入视频背景…";
                 string imported = await Task.Run(delegate
                 {
-                    return settingsStore.ImportVideoBackground(selectedVideoPath);
+                    return settingsStore.ImportVideoBackground(preparedVideo.Path);
                 });
                 if (closed) return;
                 Rect crop = VideoCropGeometry.Normalize(cropWindow.SelectedRegion);
@@ -103,7 +129,15 @@ namespace WBToolbox.Native.UI
                 SaveSettingsQuietly();
                 appearanceStatus.Text = GetBackgroundStatusText();
                 UpdateBackgroundSelectionButtons();
-                if (footerStatus != null) footerStatus.Text = "视频背景已应用";
+                if (footerStatus != null)
+                {
+                    if (preparedVideo.Optimized)
+                        footerStatus.Text = "视频背景已优化为 720p / 30 FPS 并应用";
+                    else if (optimizationError != null)
+                        footerStatus.Text = "系统优化不可用，已使用原视频";
+                    else
+                        footerStatus.Text = "视频背景已应用，无需重新编码";
+                }
             }
             catch (Exception error)
             {
@@ -127,6 +161,8 @@ namespace WBToolbox.Native.UI
             }
             finally
             {
+                if (preparedVideo != null && preparedVideo.Optimized)
+                    VideoBackgroundOptimizer.DeleteTemporaryFile(preparedVideo.Path);
                 backgroundVideoImporting = false;
             }
         }
@@ -140,6 +176,8 @@ namespace WBToolbox.Native.UI
             settings.VideoCropY = 0;
             settings.VideoCropWidth = 1;
             settings.VideoCropHeight = 1;
+            StopBackgroundVideoRecovery();
+            videoFallbackVisible = false;
             ApplyThemePalette();
             backgroundVideo.CloseMedia();
             backgroundImage.Source = null;
@@ -156,6 +194,8 @@ namespace WBToolbox.Native.UI
             settings.BackgroundMode = AppSettings.BackgroundBuiltInSkin;
             settings.CustomBackgroundPath = null;
             settings.CustomBackgroundIsVideo = false;
+            StopBackgroundVideoRecovery();
+            videoFallbackVisible = false;
             ApplyThemePalette();
             backgroundVideo.CloseMedia();
             backgroundImage.Source = SafeLoadAsset(DefaultBackgroundResource);
@@ -169,6 +209,8 @@ namespace WBToolbox.Native.UI
 
         private void ApplySavedBackground()
         {
+            StopBackgroundVideoRecovery();
+            videoFallbackVisible = false;
             backgroundImage.Source = null;
             backgroundVideo.CloseMedia();
             try
@@ -208,12 +250,15 @@ namespace WBToolbox.Native.UI
         private void UpdateBackgroundOpacity()
         {
             bool image = settings.BackgroundMode == AppSettings.BackgroundBuiltInSkin ||
-                settings.BackgroundMode == AppSettings.BackgroundCustomImage;
+                settings.BackgroundMode == AppSettings.BackgroundCustomImage ||
+                videoFallbackVisible;
             bool video = settings.BackgroundMode == AppSettings.BackgroundCustomVideo;
-            backgroundImage.Opacity = image ? (settings.DarkTheme ? 0.80 : 0.82) : 0;
+            backgroundImage.Opacity = image ? (settings.DarkTheme ? 0.90 : 0.95) : 0;
             if (backgroundVideo != null)
             {
-                backgroundVideo.Opacity = video ? (settings.DarkTheme ? 0.80 : 0.82) : 0;
+                backgroundVideo.Opacity = video && !videoFallbackVisible
+                    ? (settings.DarkTheme ? 0.90 : 0.95)
+                    : 0;
             }
         }
 
@@ -242,20 +287,79 @@ namespace WBToolbox.Native.UI
         private void HandleBackgroundVideoFailed(object sender, VideoPlaybackFailedEventArgs args)
         {
             CrashLogger.Log(args.Error);
+            if (settings.BackgroundMode != AppSettings.BackgroundCustomVideo ||
+                string.IsNullOrWhiteSpace(settings.CustomBackgroundPath)) return;
             backgroundVideo.CloseMedia();
-            settings.BackgroundMode = AppSettings.BackgroundPlain;
-            settings.CustomBackgroundPath = null;
-            settings.CustomBackgroundIsVideo = false;
-            ApplyThemePalette();
-            backgroundImage.Source = null;
+            videoFallbackVisible = true;
+            backgroundImage.Source = SafeLoadAsset(DefaultBackgroundResource);
             UpdateBackgroundLayerVisibility();
             UpdateBackgroundOpacity();
-            SaveSettingsQuietly();
             UpdateBackgroundSelectionButtons();
+            bool retryScheduled = ScheduleBackgroundVideoRecovery();
             if (appearanceStatus != null)
-                appearanceStatus.Text = "视频背景播放失败，请尝试 MP4/H.264 或 WMV。";
+                appearanceStatus.Text = retryScheduled
+                    ? "视频解码暂时中断，正在自动恢复。"
+                    : "视频解码失败，背景设置仍已保留。";
             if (footerStatus != null)
-                footerStatus.Text = "视频背景不可用，已显示默认背景";
+                footerStatus.Text = retryScheduled
+                    ? "视频背景暂时使用静态皮肤，设置已保留"
+                    : "视频背景暂不可用，可稍后重新切换";
+        }
+
+        private void HandleBackgroundVideoReady(object sender, EventArgs args)
+        {
+            backgroundVideoFailureCount = 0;
+            StopBackgroundVideoRecovery();
+            if (!videoFallbackVisible) return;
+            videoFallbackVisible = false;
+            backgroundImage.Source = null;
+            UpdateBackgroundOpacity();
+            if (appearanceStatus != null) appearanceStatus.Text = GetBackgroundStatusText();
+            if (footerStatus != null) footerStatus.Text = "视频背景已恢复";
+        }
+
+        private bool ScheduleBackgroundVideoRecovery()
+        {
+            if (closed || settings.BackgroundMode != AppSettings.BackgroundCustomVideo ||
+                string.IsNullOrWhiteSpace(settings.CustomBackgroundPath) ||
+                !File.Exists(settings.CustomBackgroundPath)) return false;
+            backgroundVideoFailureCount++;
+            if (backgroundVideoFailureCount > 2) return false;
+            if (backgroundVideoRetryTimer == null)
+            {
+                backgroundVideoRetryTimer = new DispatcherTimer(
+                    DispatcherPriority.Background, Dispatcher);
+                backgroundVideoRetryTimer.Tick += RetryBackgroundVideo;
+            }
+            backgroundVideoRetryTimer.Stop();
+            backgroundVideoRetryTimer.Interval = TimeSpan.FromMilliseconds(
+                backgroundVideoFailureCount == 1 ? 1500 : 5000);
+            backgroundVideoRetryTimer.Start();
+            return true;
+        }
+
+        private void RetryBackgroundVideo(object sender, EventArgs args)
+        {
+            backgroundVideoRetryTimer.Stop();
+            if (closed || settings.BackgroundMode != AppSettings.BackgroundCustomVideo ||
+                string.IsNullOrWhiteSpace(settings.CustomBackgroundPath) ||
+                !File.Exists(settings.CustomBackgroundPath)) return;
+            try
+            {
+                backgroundVideo.Open(settings.CustomBackgroundPath, GetSavedVideoCrop());
+                UpdateBackgroundVideoPlayback();
+            }
+            catch (Exception error)
+            {
+                CrashLogger.Log(error);
+                ScheduleBackgroundVideoRecovery();
+            }
+        }
+
+        private void StopBackgroundVideoRecovery()
+        {
+            if (backgroundVideoRetryTimer != null) backgroundVideoRetryTimer.Stop();
+            backgroundVideoFailureCount = 0;
         }
 
         private void UpdateBackgroundVideoPlayback()

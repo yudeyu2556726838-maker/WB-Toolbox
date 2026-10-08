@@ -43,6 +43,7 @@ $sources = @(
     Join-Path $root 'Services\ExchangeRateService.cs'
     Join-Path $root 'Services\SettingsStore.cs'
     Join-Path $root 'Services\TranslationService.cs'
+    Join-Path $root 'Services\VideoBackgroundOptimizer.cs'
     Join-Path $root 'UI\NativeWindowEffects.cs'
     Join-Path $root 'UI\EdgeDockController.cs'
     Join-Path $root 'UI\WindowRegionClip.cs'

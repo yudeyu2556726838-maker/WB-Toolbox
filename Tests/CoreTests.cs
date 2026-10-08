@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using WBToolbox.Native.Core;
+using WBToolbox.Native.Services;
 
 namespace WBToolbox.Native.Tests
 {
@@ -19,6 +20,7 @@ namespace WBToolbox.Native.Tests
             TestInvalidProfitRate();
             TestNumericInput();
             TestCommissionCatalog();
+            TestVideoOptimizationPolicy();
 
             if (failures > 0)
             {
@@ -26,7 +28,7 @@ namespace WBToolbox.Native.Tests
                 Environment.Exit(1);
             }
 
-            Console.WriteLine("PASS: 9 native core test groups");
+            Console.WriteLine("PASS: 10 native core test groups");
         }
 
         private static void TestCurrencyConversion()
@@ -131,6 +133,28 @@ namespace WBToolbox.Native.Tests
                 return;
             }
             Console.WriteLine("PASS: commission catalog search and rates");
+        }
+
+        private static void TestVideoOptimizationPolicy()
+        {
+            VideoTargetSize landscape = VideoBackgroundOptimizer.CalculateTargetSize(2560, 1440);
+            VideoTargetSize portrait = VideoBackgroundOptimizer.CalculateTargetSize(1080, 1920);
+            VideoTargetSize compact = VideoBackgroundOptimizer.CalculateTargetSize(640, 360);
+            bool highLoad = VideoBackgroundOptimizer.NeedsOptimization(
+                2560, 1440, 90, 64200000, "H264");
+            bool efficient = VideoBackgroundOptimizer.NeedsOptimization(
+                1280, 720, 30, 3500000, "H264");
+            bool incompatible = VideoBackgroundOptimizer.NeedsOptimization(
+                640, 360, 24, 1000000, "HEVC");
+            if (landscape.Width != 1280 || landscape.Height != 720 ||
+                portrait.Width != 720 || portrait.Height != 1280 ||
+                compact.Width != 640 || compact.Height != 360 ||
+                !highLoad || efficient || !incompatible)
+            {
+                Fail("video background optimization policy");
+                return;
+            }
+            Console.WriteLine("PASS: video background optimization policy");
         }
 
         private static CurrencyMatrix Matrix()
