@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace WBToolbox.Native.UI
@@ -66,6 +67,7 @@ namespace WBToolbox.Native.UI
         private const double FirstDecodedFrameMilliseconds = 8;
 
         private readonly Canvas canvas;
+        private readonly Image frameCover;
         private readonly DispatcherTimer loopTimer;
         private MediaElement activeMedia;
         private MediaElement standbyMedia;
@@ -77,9 +79,14 @@ namespace WBToolbox.Native.UI
         private bool standbyReady;
         private bool standbyWarming;
         private bool coveringLoop;
+        private bool coveringResume;
+        private bool pauseCoverVisible;
+        private bool playbackReadyRaised;
         private bool playRequested;
         private bool disposed;
         private int coverReadyTicks;
+        private int standbyReadyTicks;
+        private double resumePositionMilliseconds;
 
         internal VideoBackgroundPresenter()
         {
@@ -88,6 +95,14 @@ namespace WBToolbox.Native.UI
             Visibility = Visibility.Collapsed;
             canvas = new Canvas { ClipToBounds = true };
             Children.Add(canvas);
+            frameCover = new Image
+            {
+                IsHitTestVisible = false,
+                Stretch = Stretch.Fill,
+                Visibility = Visibility.Collapsed
+            };
+            Panel.SetZIndex(frameCover, 2);
+            canvas.Children.Add(frameCover);
             SizeChanged += delegate { ApplyCrop(); };
             loopTimer = new DispatcherTimer(DispatcherPriority.Render, Dispatcher)
             {
@@ -106,12 +121,22 @@ namespace WBToolbox.Native.UI
 
         internal bool UsesLoopFrameCover
         {
-            get { return standbyMedia != null; }
+            get { return frameCover.Source != null; }
         }
 
         internal bool LoopFrameCoverReady
         {
             get { return standbyReady; }
+        }
+
+        internal bool IsPlayingRequested
+        {
+            get { return playRequested; }
+        }
+
+        internal bool IsFrameCoverVisible
+        {
+            get { return pauseCoverVisible || coveringResume || coveringLoop; }
         }
 
         internal int CompletedLoopCount { get; private set; }
@@ -134,7 +159,14 @@ namespace WBToolbox.Native.UI
             standbyReady = false;
             standbyWarming = false;
             coveringLoop = false;
+            coveringResume = false;
+            pauseCoverVisible = false;
+            playbackReadyRaised = false;
             coverReadyTicks = 0;
+            standbyReadyTicks = 0;
+            resumePositionMilliseconds = 0;
+            frameCover.Source = null;
+            frameCover.Visibility = Visibility.Collapsed;
             CompletedLoopCount = 0;
             LastLoopRestartMilliseconds = double.NaN;
             LastLoopEndRemainingMilliseconds = double.NaN;
@@ -147,15 +179,24 @@ namespace WBToolbox.Native.UI
 
         internal void SetPlaying(bool playing)
         {
+            if (playRequested == playing) return;
             playRequested = playing;
             if (playing)
             {
                 if (activeMedia != null && activeReady) activeMedia.Play();
+                if (pauseCoverVisible && standbyReady && activeMedia != null)
+                {
+                    coveringResume = true;
+                    pauseCoverVisible = false;
+                    coverReadyTicks = 0;
+                    resumePositionMilliseconds = ReadPositionMilliseconds(activeMedia);
+                }
                 if (standbyMedia != null && standbyOpened && !standbyReady)
                 {
                     BeginStandbyWarmup();
                 }
-                if (standbyWarming || coveringLoop) loopTimer.Start();
+                if (!playbackReadyRaised || standbyWarming || coveringLoop || coveringResume)
+                    loopTimer.Start();
                 return;
             }
 
@@ -164,8 +205,17 @@ namespace WBToolbox.Native.UI
             if (standbyMedia != null) standbyMedia.Pause();
             standbyWarming = standbyOpened && !standbyReady;
             coveringLoop = false;
+            coveringResume = false;
             coverReadyTicks = 0;
-            RestoreLayerOrder();
+            if (standbyReady && frameCover.Source != null)
+            {
+                frameCover.Visibility = Visibility.Visible;
+                pauseCoverVisible = true;
+            }
+            else
+            {
+                RestoreLayerOrder();
+            }
         }
 
         internal void CloseMedia()
@@ -176,9 +226,16 @@ namespace WBToolbox.Native.UI
             standbyReady = false;
             standbyWarming = false;
             coveringLoop = false;
+            coveringResume = false;
+            pauseCoverVisible = false;
+            playbackReadyRaised = false;
             coverReadyTicks = 0;
+            standbyReadyTicks = 0;
+            resumePositionMilliseconds = 0;
             sourceSize = Size.Empty;
             sourceUri = null;
+            frameCover.Source = null;
+            frameCover.Visibility = Visibility.Collapsed;
             CloseElement(activeMedia);
             CloseElement(standbyMedia);
             activeMedia = null;
@@ -212,7 +269,7 @@ namespace WBToolbox.Native.UI
             standbyMedia = CreateMediaElement();
             Panel.SetZIndex(standbyMedia, 0);
             standbyMedia.Source = sourceUri;
-            if (standbyMedia.IsLoaded) standbyMedia.Play();
+            if (standbyMedia.IsLoaded && playRequested) standbyMedia.Play();
         }
 
         private void HandleMediaLoaded(object sender, RoutedEventArgs args)
@@ -225,7 +282,7 @@ namespace WBToolbox.Native.UI
             }
             else if (ReferenceEquals(element, standbyMedia))
             {
-                element.Play();
+                if (playRequested) element.Play();
             }
         }
 
@@ -245,8 +302,6 @@ namespace WBToolbox.Native.UI
                 sourceSize = new Size(opened.NaturalVideoWidth, opened.NaturalVideoHeight);
                 activeReady = true;
                 ApplyCrop();
-                EventHandler ready = PlaybackReady;
-                if (ready != null) ready(this, EventArgs.Empty);
                 EnsureStandby();
                 if (playRequested)
                 {
@@ -264,7 +319,7 @@ namespace WBToolbox.Native.UI
             {
                 standbyOpened = true;
                 ApplyCrop(opened);
-                BeginStandbyWarmup();
+                if (playRequested) BeginStandbyWarmup();
             }
         }
 
@@ -272,6 +327,7 @@ namespace WBToolbox.Native.UI
         {
             if (!standbyOpened || standbyReady || standbyMedia == null) return;
             standbyWarming = true;
+            standbyReadyTicks = 0;
             Panel.SetZIndex(standbyMedia, 0);
             standbyMedia.Position = TimeSpan.Zero;
             standbyMedia.Play();
@@ -282,15 +338,33 @@ namespace WBToolbox.Native.UI
         {
             try
             {
+                if (!playbackReadyRaised && activeReady && activeMedia != null &&
+                    ReadPositionMilliseconds(activeMedia) >= FirstDecodedFrameMilliseconds &&
+                    (standbyReady || standbyMedia == null))
+                {
+                    playbackReadyRaised = true;
+                    EventHandler ready = PlaybackReady;
+                    if (ready != null) ready(this, EventArgs.Empty);
+                }
+
                 if (standbyWarming && standbyMedia != null &&
                     standbyMedia.Position.TotalMilliseconds >= FirstDecodedFrameMilliseconds)
                 {
-                    // Freeze the first actually decoded frame. This element is never
-                    // used for playback; it only masks the primary surface while that
-                    // surface seeks from the final frame back to the beginning.
-                    standbyMedia.Pause();
-                    standbyWarming = false;
-                    standbyReady = true;
+                    // Let the decoded frame survive several render passes before
+                    // freezing it. Pausing on the first position update can leave a
+                    // partially cleared media surface and produce a one-frame black
+                    // block when this cover is raised later.
+                    standbyReadyTicks++;
+                    if (standbyReadyTicks >= 3)
+                    {
+                        standbyReady = CaptureStandbyFrame();
+                        standbyMedia.Pause();
+                        standbyWarming = false;
+                        MediaElement completedStandby = standbyMedia;
+                        standbyMedia = null;
+                        standbyOpened = false;
+                        CloseElement(completedStandby);
+                    }
                 }
 
                 if (coveringLoop && activeMedia != null &&
@@ -305,7 +379,19 @@ namespace WBToolbox.Native.UI
                     }
                 }
 
-                if (!standbyWarming && !coveringLoop)
+                if (coveringResume && activeMedia != null &&
+                    HasAdvanced(activeMedia.Position.TotalMilliseconds, resumePositionMilliseconds))
+                {
+                    coverReadyTicks++;
+                    if (coverReadyTicks >= 2)
+                    {
+                        coveringResume = false;
+                        coverReadyTicks = 0;
+                        RestoreLayerOrder();
+                    }
+                }
+
+                if (playbackReadyRaised && !standbyWarming && !coveringLoop && !coveringResume)
                 {
                     loopTimer.Stop();
                 }
@@ -321,13 +407,15 @@ namespace WBToolbox.Native.UI
             MediaElement ended = sender as MediaElement;
             if (ended == null || !ReferenceEquals(ended, activeMedia) || !playRequested) return;
 
-            if (standbyReady && standbyMedia != null)
+            if (standbyReady && frameCover.Source != null)
             {
                 // Preserve Alpha 29's exact single-player loop. The frozen first-frame
                 // cover is raised only while the same player seeks, so there is no
                 // second playback clock and therefore no altered loop cadence.
-                Panel.SetZIndex(standbyMedia, 2);
+                frameCover.Visibility = Visibility.Visible;
                 coveringLoop = true;
+                coveringResume = false;
+                pauseCoverVisible = false;
                 coverReadyTicks = 0;
             }
 
@@ -343,6 +431,53 @@ namespace WBToolbox.Native.UI
         {
             if (standbyMedia != null) Panel.SetZIndex(standbyMedia, 0);
             if (activeMedia != null) Panel.SetZIndex(activeMedia, 1);
+            frameCover.Visibility = Visibility.Collapsed;
+            pauseCoverVisible = false;
+        }
+
+        private bool CaptureStandbyFrame()
+        {
+            if (standbyMedia == null || standbyMedia.ActualWidth <= 0 ||
+                standbyMedia.ActualHeight <= 0) return false;
+            try
+            {
+                Matrix toDevice = Matrix.Identity;
+                PresentationSource source = PresentationSource.FromVisual(this);
+                if (source != null && source.CompositionTarget != null)
+                    toDevice = source.CompositionTarget.TransformToDevice;
+                int pixelWidth = Math.Max(1, (int)Math.Ceiling(
+                    standbyMedia.ActualWidth * toDevice.M11));
+                int pixelHeight = Math.Max(1, (int)Math.Ceiling(
+                    standbyMedia.ActualHeight * toDevice.M22));
+                RenderTargetBitmap bitmap = new RenderTargetBitmap(
+                    pixelWidth,
+                    pixelHeight,
+                    96 * toDevice.M11,
+                    96 * toDevice.M22,
+                    PixelFormats.Pbgra32);
+                bitmap.Render(standbyMedia);
+                bitmap.Freeze();
+                frameCover.Source = bitmap;
+                ApplyCoverBounds();
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                frameCover.Source = null;
+                return false;
+            }
+        }
+
+        private static bool HasAdvanced(double current, double previous)
+        {
+            return current >= previous + FirstDecodedFrameMilliseconds ||
+                current + FirstDecodedFrameMilliseconds < previous;
+        }
+
+        private static double ReadPositionMilliseconds(MediaElement element)
+        {
+            try { return element == null ? 0 : element.Position.TotalMilliseconds; }
+            catch (InvalidOperationException) { return 0; }
         }
 
         private void HandleMediaFailed(object sender, ExceptionRoutedEventArgs args)
@@ -353,13 +488,17 @@ namespace WBToolbox.Native.UI
                 standbyOpened = false;
                 standbyReady = false;
                 standbyWarming = false;
+                standbyReadyTicks = 0;
                 coveringLoop = false;
+                coveringResume = false;
+                pauseCoverVisible = false;
                 CloseElement(standbyMedia);
                 standbyMedia = null;
                 RestoreLayerOrder();
                 return;
             }
             activeReady = false;
+            playbackReadyRaised = false;
             loopTimer.Stop();
             RaisePlaybackFailed(args.ErrorException ?? new InvalidOperationException("视频解码失败"));
         }
@@ -375,6 +514,19 @@ namespace WBToolbox.Native.UI
             if (!activeReady || ActualWidth <= 0 || ActualHeight <= 0) return;
             ApplyCrop(activeMedia);
             if (standbyOpened) ApplyCrop(standbyMedia);
+            if (frameCover.Source != null) ApplyCoverBounds();
+        }
+
+        private void ApplyCoverBounds()
+        {
+            if (sourceSize.IsEmpty || ActualWidth <= 0 || ActualHeight <= 0) return;
+            Rect bounds = VideoCropGeometry.CalculateMediaBounds(
+                new Size(ActualWidth, ActualHeight), sourceSize, cropRegion);
+            if (bounds.IsEmpty) return;
+            frameCover.Width = bounds.Width;
+            frameCover.Height = bounds.Height;
+            Canvas.SetLeft(frameCover, bounds.Left);
+            Canvas.SetTop(frameCover, bounds.Top);
         }
 
         private void ApplyCrop(MediaElement element)

@@ -747,14 +747,70 @@ namespace WBToolbox.Native.Tests
         {
             BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
             FieldInfo miniWindow = typeof(MainWindow).GetField("miniWindow", fields);
-            window.WindowState = WindowState.Minimized;
-            Wait(window.Dispatcher, 100);
-            if (window.WindowState != WindowState.Minimized || miniWindow == null || miniWindow.GetValue(window) != null)
-                throw new InvalidOperationException("Win+D 被错误转换成悬浮图标模式");
-            window.WindowState = WindowState.Normal;
-            Wait(window.Dispatcher, 180);
-            if (window.WindowState != WindowState.Normal || !window.IsVisible)
-                throw new InvalidOperationException("Win+D 后主窗口无法恢复");
+            FieldInfo settingsField = typeof(MainWindow).GetField("settings", fields);
+            FieldInfo dockPausedField = typeof(MainWindow).GetField("backgroundVideoDockPaused", fields);
+            FieldInfo loadedField = typeof(MainWindow).GetField("loaded", fields);
+            FieldInfo miniTransitioningField = typeof(MainWindow).GetField("miniTransitioning", fields);
+            FieldInfo interactiveResizeField = typeof(MainWindow).GetField("interactiveResize", fields);
+            MethodInfo updateVideo = typeof(MainWindow).GetMethod(
+                "UpdateBackgroundVideoPlayback", fields);
+            VideoBackgroundPresenter presenter = GetPrivateField<VideoBackgroundPresenter>(
+                window, "backgroundVideo", fields);
+            AppSettings settings = settingsField.GetValue(window) as AppSettings;
+            string previousMode = settings.BackgroundMode;
+            string previousPath = settings.CustomBackgroundPath;
+            bool previousIsVideo = settings.CustomBackgroundIsVideo;
+            bool previousDockPaused = (bool)dockPausedField.GetValue(window);
+            bool previousLoaded = (bool)loadedField.GetValue(window);
+            bool previousMiniTransitioning = (bool)miniTransitioningField.GetValue(window);
+            bool previousInteractiveResize = (bool)interactiveResizeField.GetValue(window);
+            try
+            {
+                window.WindowState = WindowState.Normal;
+                window.Show();
+                loadedField.SetValue(window, true);
+                miniTransitioningField.SetValue(window, false);
+                interactiveResizeField.SetValue(window, false);
+                settings.BackgroundMode = AppSettings.BackgroundCustomVideo;
+                settings.CustomBackgroundPath = "playback-state-test.mp4";
+                settings.CustomBackgroundIsVideo = true;
+                dockPausedField.SetValue(window, false);
+                updateVideo.Invoke(window, null);
+                if (!presenter.IsPlayingRequested)
+                    throw new InvalidOperationException("可见窗口没有启动视频背景");
+
+                dockPausedField.SetValue(window, true);
+                updateVideo.Invoke(window, null);
+                if (presenter.IsPlayingRequested)
+                    throw new InvalidOperationException("贴边隐藏后视频背景仍在播放");
+
+                dockPausedField.SetValue(window, false);
+                window.WindowState = WindowState.Minimized;
+                Wait(window.Dispatcher, 100);
+                if (window.WindowState != WindowState.Minimized ||
+                    miniWindow == null || miniWindow.GetValue(window) != null)
+                    throw new InvalidOperationException("Win+D 被错误转换成悬浮图标模式");
+                if (presenter.IsPlayingRequested)
+                    throw new InvalidOperationException("系统最小化后视频背景仍在播放");
+
+                window.WindowState = WindowState.Normal;
+                Wait(window.Dispatcher, 180);
+                if (window.WindowState != WindowState.Normal || !window.IsVisible)
+                    throw new InvalidOperationException("Win+D 后主窗口无法恢复");
+                if (!presenter.IsPlayingRequested)
+                    throw new InvalidOperationException("恢复窗口后视频背景没有继续播放");
+            }
+            finally
+            {
+                settings.BackgroundMode = previousMode;
+                settings.CustomBackgroundPath = previousPath;
+                settings.CustomBackgroundIsVideo = previousIsVideo;
+                dockPausedField.SetValue(window, previousDockPaused);
+                loadedField.SetValue(window, previousLoaded);
+                miniTransitioningField.SetValue(window, previousMiniTransitioning);
+                interactiveResizeField.SetValue(window, previousInteractiveResize);
+                updateVideo.Invoke(window, null);
+            }
         }
 
         private static bool ContainsText(DependencyObject root, string text)
@@ -1018,8 +1074,24 @@ namespace WBToolbox.Native.Tests
             string outputDirectory)
         {
             BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+            bool wasTopmost = window.Topmost;
+            EdgeDockController edgeDock = GetPrivateField<EdgeDockController>(
+                window, "edgeDock", fields);
+            if (edgeDock != null) edgeDock.Detach();
+            window.WindowState = WindowState.Normal;
+            window.Left = SystemParameters.WorkArea.Left + 40;
+            window.Top = SystemParameters.WorkArea.Top + 40;
+            window.Show();
+            window.Topmost = false;
+            window.Topmost = true;
+            window.Activate();
+            window.Focus();
+            Wait(window.Dispatcher, 220);
             VideoBackgroundPresenter presenter = GetPrivateField<VideoBackgroundPresenter>(
                 window, "backgroundVideo", fields);
+            bool playbackReady = false;
+            EventHandler playbackReadyHandler = delegate { playbackReady = true; };
+            presenter.PlaybackReady += playbackReadyHandler;
             presenter.Opacity = 0.88;
             presenter.Open(videoPath, new Rect(0.2, 0.05, 0.6, 0.9));
             presenter.SetPlaying(true);
@@ -1034,11 +1106,71 @@ namespace WBToolbox.Native.Tests
                 "视频背景首帧遮罩没有完成预加载");
             WaitUntil(
                 window.Dispatcher,
+                delegate { return playbackReady; },
+                1000,
+                "视频首帧遮罩就绪后仍未报告可显示状态");
+            presenter.PlaybackReady -= playbackReadyHandler;
+            FieldInfo activeMediaField = typeof(VideoBackgroundPresenter)
+                .GetField("activeMedia", fields);
+            MediaElement activeMedia = activeMediaField == null
+                ? null
+                : activeMediaField.GetValue(presenter) as MediaElement;
+            if (activeMedia == null)
+                throw new InvalidOperationException("视频背景没有活动播放器");
+            presenter.SetPlaying(false);
+            double lastPausePosition = activeMedia.Position.TotalMilliseconds;
+            int stablePauseSamples = 0;
+            WaitUntil(
+                window.Dispatcher,
+                delegate
+                {
+                    double current = activeMedia.Position.TotalMilliseconds;
+                    if (Math.Abs(current - lastPausePosition) <= 2)
+                        stablePauseSamples++;
+                    else
+                        stablePauseSamples = 0;
+                    lastPausePosition = current;
+                    return stablePauseSamples >= 4;
+                },
+                1200,
+                "视频暂停命令没有停止播放位置");
+            double pausedAt = activeMedia.Position.TotalMilliseconds;
+            Wait(window.Dispatcher, 260);
+            double pausedAfterWait = activeMedia.Position.TotalMilliseconds;
+            if (presenter.IsPlayingRequested || !presenter.IsFrameCoverVisible ||
+                Math.Abs(pausedAfterWait - pausedAt) > 35)
+            {
+                throw new InvalidOperationException(
+                    "视频暂停或暂停封面无效：requested=" + presenter.IsPlayingRequested +
+                    " cover=" + presenter.IsFrameCoverVisible +
+                    " positions=" + pausedAt.ToString("0.0") + "->" +
+                    pausedAfterWait.ToString("0.0") + "ms");
+            }
+            List<string> resumeFrames = new List<string>();
+            string pausedFrame = Path.Combine(outputDirectory, "16-video-paused.png");
+            CaptureScreen(window, pausedFrame);
+            resumeFrames.Add(pausedFrame);
+            presenter.SetPlaying(true);
+            for (int frame = 0; frame < 8; frame++)
+            {
+                string framePath = Path.Combine(
+                    outputDirectory,
+                    "16-video-resume-" + frame.ToString("00") + ".png");
+                CaptureScreen(window, framePath);
+                resumeFrames.Add(framePath);
+                Wait(window.Dispatcher, 12);
+            }
+            WaitUntil(
+                window.Dispatcher,
+                delegate { return presenter.IsPlayingRequested && !presenter.IsFrameCoverVisible; },
+                2000,
+                "视频恢复后没有平滑移除暂停封面");
+            AssertNoVideoSeamFlash(resumeFrames);
+            WaitUntil(
+                window.Dispatcher,
                 delegate { return presenter.CompletedLoopCount >= 1; },
                 10000,
                 "视频背景没有完成第一次原播放器循环");
-            FieldInfo activeMediaField = typeof(VideoBackgroundPresenter)
-                .GetField("activeMedia", fields);
             WaitUntil(
                 window.Dispatcher,
                 delegate
@@ -1047,14 +1179,10 @@ namespace WBToolbox.Native.Tests
                         ? null
                         : activeMediaField.GetValue(presenter) as MediaElement;
                     return active != null && active.NaturalDuration.HasTimeSpan &&
-                        (active.NaturalDuration.TimeSpan - active.Position).TotalMilliseconds <= 140;
+                        (active.NaturalDuration.TimeSpan - active.Position).TotalMilliseconds <= 220;
                 },
-                8000,
+                10000,
                 "视频背景第二次循环没有进入衔接区间");
-            bool wasTopmost = window.Topmost;
-            window.Topmost = true;
-            window.Show();
-            window.Activate();
             List<string> seamFrames = new List<string>();
             for (int frame = 0; frame < 12; frame++)
             {
@@ -1749,12 +1877,14 @@ namespace WBToolbox.Native.Tests
         private static void AssertNoVideoSeamFlash(IList<string> paths)
         {
             List<double> means = new List<double>();
+            List<double> darkestTiles = new List<double>();
             foreach (string path in paths)
             {
                 using (DrawingBitmap bitmap = new DrawingBitmap(path))
                 {
                     double total = 0;
                     int samples = 0;
+                    double darkestTile = double.MaxValue;
                     for (int y = 0; y < bitmap.Height; y += 12)
                     {
                         for (int x = 0; x < bitmap.Width; x += 12)
@@ -1765,6 +1895,30 @@ namespace WBToolbox.Native.Tests
                         }
                     }
                     means.Add(samples == 0 ? 0 : total / samples);
+                    for (int tileY = 0; tileY < 6; tileY++)
+                    {
+                        for (int tileX = 0; tileX < 6; tileX++)
+                        {
+                            double tileTotal = 0;
+                            int tileSamples = 0;
+                            int left = tileX * bitmap.Width / 6;
+                            int right = (tileX + 1) * bitmap.Width / 6;
+                            int top = tileY * bitmap.Height / 6;
+                            int bottom = (tileY + 1) * bitmap.Height / 6;
+                            for (int y = top; y < bottom; y += 6)
+                            {
+                                for (int x = left; x < right; x += 6)
+                                {
+                                    System.Drawing.Color pixel = bitmap.GetPixel(x, y);
+                                    tileTotal += (pixel.R + pixel.G + pixel.B) / 3.0;
+                                    tileSamples++;
+                                }
+                            }
+                            if (tileSamples > 0)
+                                darkestTile = Math.Min(darkestTile, tileTotal / tileSamples);
+                        }
+                    }
+                    darkestTiles.Add(darkestTile);
                 }
             }
 
@@ -1775,11 +1929,21 @@ namespace WBToolbox.Native.Tests
                 minimum = Math.Min(minimum, mean);
                 maximum = Math.Max(maximum, mean);
             }
-            if (minimum < 70 || maximum > 250 || maximum - minimum > 35)
+            double minimumTile = double.MaxValue;
+            double maximumTile = double.MinValue;
+            foreach (double tile in darkestTiles)
+            {
+                minimumTile = Math.Min(minimumTile, tile);
+                maximumTile = Math.Max(maximumTile, tile);
+            }
+            if (minimum < 70 || maximum > 250 || maximum - minimum > 35 ||
+                maximumTile - minimumTile > 45)
             {
                 throw new InvalidOperationException(
                     "视频衔接连续帧出现黑白闪烁：亮度范围 " +
-                    minimum.ToString("0.0") + "-" + maximum.ToString("0.0"));
+                    minimum.ToString("0.0") + "-" + maximum.ToString("0.0") +
+                    "，最暗分区范围 " + minimumTile.ToString("0.0") + "-" +
+                    maximumTile.ToString("0.0"));
             }
         }
 

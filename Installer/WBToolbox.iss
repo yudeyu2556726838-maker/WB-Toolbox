@@ -1,9 +1,9 @@
 #define MyAppName "WB Toolbox"
-#define MyAppVersion "4.0.0 Alpha 40"
-#define MyAppExeName "WB-Toolbox-v4.0.0-alpha.40.exe"
+#define MyAppVersion "4.0.0 Alpha 41"
+#define MyAppExeName "WB-Toolbox-v4.0.0-alpha.41.exe"
 
 #ifndef MyAppSource
-  #define MyAppSource AddBackslash(SourcePath) + "..\..\release\WB-Toolbox-v4.0.0-alpha.40"
+  #define MyAppSource AddBackslash(SourcePath) + "..\..\release\WB-Toolbox-v4.0.0-alpha.41"
 #endif
 
 #ifndef MyOutputDir
@@ -20,7 +20,7 @@ DefaultDirName={localappdata}\Programs\WB Toolbox
 DefaultGroupName=WB Toolbox
 DisableProgramGroupPage=yes
 OutputDir={#MyOutputDir}
-OutputBaseFilename=WB-Toolbox-v4.0.0-alpha.40-Setup
+OutputBaseFilename=WB-Toolbox-v4.0.0-alpha.41-Setup
 SetupIconFile=..\Assets\WBToolbox.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

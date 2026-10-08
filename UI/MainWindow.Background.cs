@@ -121,7 +121,8 @@ namespace WBToolbox.Native.UI
                 settings.VideoCropWidth = crop.Width;
                 settings.VideoCropHeight = crop.Height;
                 ApplyThemePalette();
-                backgroundImage.Source = null;
+                videoFallbackVisible = true;
+                backgroundImage.Source = SafeLoadAsset(DefaultBackgroundResource);
                 backgroundVideo.Open(imported, crop);
                 UpdateBackgroundLayerVisibility();
                 UpdateBackgroundOpacity();
@@ -148,7 +149,10 @@ namespace WBToolbox.Native.UI
                 {
                     try
                     {
+                        videoFallbackVisible = true;
+                        backgroundImage.Source = SafeLoadAsset(DefaultBackgroundResource);
                         backgroundVideo.Open(settings.CustomBackgroundPath, GetSavedVideoCrop());
+                        UpdateBackgroundOpacity();
                         UpdateBackgroundVideoPlayback();
                     }
                     catch (Exception restoreError)
@@ -224,6 +228,8 @@ namespace WBToolbox.Native.UI
                     if (string.IsNullOrWhiteSpace(settings.CustomBackgroundPath) ||
                         !File.Exists(settings.CustomBackgroundPath))
                         throw new FileNotFoundException("未找到已保存的视频背景");
+                    videoFallbackVisible = true;
+                    backgroundImage.Source = SafeLoadAsset(DefaultBackgroundResource);
                     backgroundVideo.Open(settings.CustomBackgroundPath, GetSavedVideoCrop());
                 }
                 else if (settings.BackgroundMode == AppSettings.BackgroundCustomImage)
@@ -258,7 +264,7 @@ namespace WBToolbox.Native.UI
             {
                 backgroundVideo.Opacity = video && !videoFallbackVisible
                     ? (settings.DarkTheme ? 0.90 : 0.95)
-                    : 0;
+                    : (video && videoFallbackVisible ? 0.01 : 0);
             }
         }
 
